@@ -10,8 +10,8 @@
 #define IP "127.0.0.1"
 #define PORT 3000
 
-void* send_msg (void* arg);
-void* recv_msg (void* arg);
+void* send_msg(void* arg);
+void* recv_msg(void* arg);
 
 char msg[BUF_SIZE];
 
@@ -23,7 +23,7 @@ int main()
 	pthread_t snd_thread, rcv_thread;
 	void* thread_rtn;
 
-	if ((clnt_sock = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
+	if((clnt_sock = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
 		perror("socket");
 		return -1;
 	}
@@ -32,7 +32,7 @@ int main()
 	serv_adr.sin_addr.s_addr = inet_addr(IP);
 	serv_adr.sin_port = htons(PORT);
 
-	if (connect(clnt_sock, (struct sockaddr*)&serv_adr, sizeof(serv_adr)) == -1) {
+	if(connect(clnt_sock, (struct sockaddr*)&serv_adr, sizeof(serv_adr)) == -1) {
 		perror("connect");
 		close(clnt_sock);
 	}
@@ -45,15 +45,15 @@ int main()
 	return 0;
 }
 
-void* send_msg (void* arg)
+void* send_msg(void* arg)
 {
 	int clnt_sock = *((int*)arg);
 
-	while (1)
+	while(1)
 	{
 		fgets(msg, BUF_SIZE, stdin);
 		
-		if (!strcmp(msg, "q\n"))
+		if(!strcmp(msg, "q\n"))
 		{
 			write(clnt_sock, msg, strlen(msg));
 			close(clnt_sock);
@@ -67,27 +67,27 @@ void* send_msg (void* arg)
 	return NULL;
 }
 
-void* recv_msg (void* arg)
+void* recv_msg(void* arg)
 {
 	int clnt_sock = *((int*)arg);
 	int rcv_len;
 
-	while (1)
+	while(1)
 	{
 		rcv_len = read(clnt_sock, msg, BUF_SIZE - 1);
 
-		if (rcv_len == -1) {
+		if(rcv_len == -1) {
 			perror("receive");
 			return (void*) -1;
 		}
 		
-		if (!strcmp(msg, "q\n")) {
+		if(!strcmp(msg, "q\n")) {
 			printf("%s", "server is gone\n");
 			close(clnt_sock);
 			exit(0);
 		}
 
-		if (rcv_len > 0) {
+		if(rcv_len > 0) {
 			msg[rcv_len] = 0;
 			printf("server: %s", msg);
 		}
