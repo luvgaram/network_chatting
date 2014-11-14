@@ -125,7 +125,7 @@ void* send_msg(void* arg)
 		{
 			write(clnt_sock, msg, strlen(msg));
 			close(clnt_sock);
-			return NULL;;
+			exit(0);
 		}
 
 		printf("%c[%d;%df", 0x1B, ((cursor++) % LINE_SIZE) + 1, 25);
@@ -154,7 +154,7 @@ void* recv_msg(void* arg)
 		if(!strcmp(msg, "q\n")) {
 			printf("%s", "client is gone\n");
 			close(clnt_sock);
-			exit(0);
+			return 0;	
 		} 
 		
 		if(rcv_len > 0) {
