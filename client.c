@@ -9,11 +9,14 @@
 #define BUF_SIZE 1024
 #define IP "127.0.0.1"
 #define PORT 3000
+#define IN_CURSOR 30 // 입력 커서 위치
+#define LINE_SIZE 20 // 채팅줄 수
 
 void* send_msg(void* arg);
 void* recv_msg(void* arg);
 
 char msg[BUF_SIZE];
+int cursor = LINE_SIZE;
 
 int main()
 {
@@ -37,6 +40,10 @@ int main()
 		close(clnt_sock);
 	}
 
+	printf("\033[2J");
+	printf("%c[%d;%df", 0x1B, ((cursor++) % 20) + 1, 25);
+	printf ("server connected\n");
+
 	pthread_create(&snd_thread, NULL, send_msg, (void*)&clnt_sock);
 	pthread_create(&rcv_thread, NULL, recv_msg, (void*)&clnt_sock);
 	pthread_join(snd_thread, &thread_rtn);
@@ -51,6 +58,7 @@ void* send_msg(void* arg)
 
 	while(1)
 	{
+		printf("%c[%d;%df", 0x1B, IN_CURSOR, 0);
 		fgets(msg, BUF_SIZE, stdin);
 		
 		if(!strcmp(msg, "q\n"))
@@ -60,8 +68,10 @@ void* send_msg(void* arg)
 			return NULL ;
 		}
 
+		printf("%c[%d;%df", 0x1B, ((cursor++) % LINE_SIZE) + 1, 25);
 		printf("client: %s", msg);
 		write(clnt_sock, msg, strlen(msg));
+		printf("%c[%d;%df", 0x1B, IN_CURSOR, 0);
 	}
 
 	return NULL;
@@ -89,7 +99,13 @@ void* recv_msg(void* arg)
 
 		if(rcv_len > 0) {
 			msg[rcv_len] = 0;
+			printf("%c[%d;%df", 0x1B, ((cursor) % LINE_SIZE) + 1, 0);
 			printf("server: %s", msg);
+			int i = IN_CURSOR - ((cursor % LINE_SIZE) + 2);
+			for(i; i > 0; i--) {
+				printf("%s", "\n");
+			}
+			cursor++;
 		}
 	}
 
