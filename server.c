@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-#include <sys/epoll.h>
+#include <epoll.h>
 #include <pthread.h>
 #include <fcntl.h>
 #include <termios.h>
@@ -95,7 +95,7 @@ int main()
 				} else {
 					str_len = read(ep_evnts[i].data.fd, msg, BUF_SIZE);
 					if(str_len == 0) {
-						epoll_ctl(ep_fd, EPOLL_CTL_DEL, ep_evnts[i].data.fd);
+						epoll_ctl(ep_fd, EPOLL_CTL_DEL, ep_evnts[i].data.fd, NULL);
 					} else {
 //						pthread_detach(snd_thread);
 //						pthread_detach(rcv_thread);
@@ -123,6 +123,8 @@ int main()
 	close(ep_fd);
 	return 0;
 //	return str_len;
+
+	}
 }
 
 void* send_msg(void* arg)
