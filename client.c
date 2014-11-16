@@ -6,12 +6,11 @@
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <fcntl.h>
-//#include <pthread.h>
 
 #define BUF_SIZE 1024
 #define IP "127.0.0.1"
 #define PORT 3000
-#define IN_CURSOR 22 // 입력 커서 위치
+#define IN_CURSOR 30 // 입력 커서 위치
 #define LINE_SIZE 20 // 채팅줄 수
 #define EPOLL_SIZE 2 // epoll fd 수, stdin & clnt_sock
 
@@ -29,7 +28,7 @@ int main()
 	struct epoll_event evnt;
 	int clnt_sock, read_tot, write_tot, ep_fd, evnt_cnt, nfds, flag, rcv_len, i;
 
-	if((clnt_sock = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
+	if ((clnt_sock = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
 		perror("socket");
 		return -1;
 	}
@@ -38,7 +37,7 @@ int main()
 	serv_adr.sin_addr.s_addr = inet_addr(IP);
 	serv_adr.sin_port = htons(PORT);
 
-	if(connect(clnt_sock, (struct sockaddr*)&serv_adr, sizeof(serv_adr)) == -1) {
+	if (connect(clnt_sock, (struct sockaddr*)&serv_adr, sizeof(serv_adr)) == -1) {
 		perror("connect");
 		close(clnt_sock);
 	}
@@ -54,7 +53,7 @@ int main()
 	evnt.events = EPOLLIN;
 	evnt.data.fd = clnt_sock;
 
-	if(epoll_ctl(ep_fd, EPOLL_CTL_ADD, clnt_sock, &evnt) == -1) {
+	if (epoll_ctl(ep_fd, EPOLL_CTL_ADD, clnt_sock, &evnt) == -1) {
 		perror("epoll_ctl_clnt_sock");
 		exit(EXIT_FAILURE);
 	}
@@ -72,12 +71,11 @@ int main()
 	fcntl(clnt_sock, F_SETFL, flag | O_NONBLOCK);
 
 	while(1) {
-		if((nfds = epoll_wait(ep_fd, ep_evnts, EPOLL_SIZE, -1)) == -1) {
+		if ((nfds = epoll_wait(ep_fd, ep_evnts, EPOLL_SIZE, -1)) == -1) {
 			perror("epoll_wait");
 			exit(EXIT_FAILURE);
 		}
 
-//		printf("%c[%d;%df", 0x1B, IN_CURSOR, 0);
 		for (i = 0; i < nfds; i++) {
 			if (ep_evnts[i].data.fd == clnt_sock) {
 				recv_msg((void*)&clnt_sock);
@@ -95,18 +93,14 @@ void* send_msg(void* arg)
 {
 	int clnt_sock = *((int*)arg);
 
-//	printf("%c[%d;%df", 0x1B, IN_CURSOR, 0);
 	fgets(msg, BUF_SIZE, stdin);
 	
-	if(!strcmp(msg, "q\n")) {
+	if (!strcmp(msg, "q\n")) {
 		close(clnt_sock);
 		exit(0);
 	}
 
-//	printf("%c[%d;%df", 0x1B, ((cursor) % LINE_SIZE) + 1, 25);
-//	printf("me: %s", msg);
 	write(clnt_sock, msg, strlen(msg) + 1);
-//	move_cursor();
 
 	return NULL;
 }
@@ -118,16 +112,15 @@ void* recv_msg(void* arg)
 
 	rcv_len = read(clnt_sock, msg, BUF_SIZE);
 
-	if(rcv_len == -1) {
+	if (rcv_len == -1) {
 		perror("receive");
 		return (void*) -1;
 	}
 
-	if(rcv_len > 0) {
-//		msg[rcv_len] = 0;
+	if (rcv_len > 0) {
 		printf("%c[%d;%df", 0x1B, ((cursor) % LINE_SIZE) + 1, 0);
 
-		if(msg[rcv_len - 1] == 0)
+		if (msg[rcv_len - 1] == 0)
 			printf("%s", msg);
 		else perror("invalid string");
 
