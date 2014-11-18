@@ -136,7 +136,7 @@ void* recv_msg(void* arg)
 void move_cursor()
 {
 	int i = IN_CURSOR - ((cursor % LINE_SIZE) + 2);
-	for(i; i > 0; i--) {
+	for( ; i > 0; i--) {
 		printf("\n");
 	}
 	cursor++;
