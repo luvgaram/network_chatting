@@ -86,7 +86,6 @@ int main()
 
 				// 가장 큰 클라 소켓 값 저장
 				clnt_max = check_clnt_in(clnt_sock, clnt_max);
-				printf("%d\n", clnt_max);
 
 				//nonblocking
 				flag = fcntl(clnt_sock, F_GETFL, 0);
@@ -112,7 +111,6 @@ int main()
                			epoll_ctl(ep_fd, EPOLL_CTL_DEL, user_data->fd, NULL);
 	               		printf("client closed : %d\n", user_data->fd);
 						clnt_max = check_clnt_out(user_data->fd, clnt_max);
-						printf("%d\n", clnt_max);
 						close(user_data->fd);
 						user_fds[user_data->fd] = 0;
 						free(user_data);
@@ -152,7 +150,6 @@ int check_clnt_out(int clnt, int clnt_max)
 	if (clnt == clnt_max) {
 		clnt = clnt - 1;
 		for ( ; clnt >= 0; clnt--) {
-			printf("checking %d\n", clnt);
 			if (user_fds[clnt] != 0)
 				return clnt;
 		}

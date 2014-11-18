@@ -16,8 +16,8 @@
 #define ERROR -1
 #define STDIN 0
 
-void* send_msg(void* arg);
-void* recv_msg(void* arg);
+void send_msg(int clnt_sock);
+void read_msg(int clnt_sock);
 void move_cursor(void);
 
 char msg[BUF_SIZE];
@@ -81,9 +81,9 @@ int main()
 
 		for (i = 0; i < fd_cnt; i++) {
 			if (ep_evnts[i].data.fd == clnt_sock) {
-				recv_msg((void*)&clnt_sock);
+				read_msg(clnt_sock);
 			} else if (ep_evnts[i].data.fd == STDIN) {
-				send_msg((void*)&clnt_sock);
+				send_msg(clnt_sock);
 			}
 		}
 	}
@@ -92,9 +92,9 @@ int main()
 	return 0;
 }
 
-void* send_msg(void* arg)
+void send_msg(int clnt_sock)
 {
-	int clnt_sock = *((int*)arg);
+//	int clnt_sock = x*((int*)arg);
 
 	fgets(msg, BUF_SIZE, stdin);
 	
@@ -104,20 +104,18 @@ void* send_msg(void* arg)
 	}
 
 	write(clnt_sock, msg, strlen(msg) + 1);
-
-	return NULL;
 }
 
-void* recv_msg(void* arg)
+void read_msg(int clnt_sock)
 {
-	int clnt_sock = *((int*)arg);
+//	int clnt_sock = *((int*)arg);
 	int rcv_len;
 
 	rcv_len = read(clnt_sock, msg, BUF_SIZE);
 
 	if (rcv_len == ERROR) {
 		perror("receive");
-		return (void*) -1;
+		return;
 	}
 
 	if (rcv_len > 0) {
@@ -129,8 +127,6 @@ void* recv_msg(void* arg)
 
 		move_cursor();
 	}
-
-	return NULL;
 }
 
 void move_cursor()
