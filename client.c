@@ -13,6 +13,8 @@
 #define IN_CURSOR 30 // 입력 커서 위치
 #define LINE_SIZE 20 // 채팅줄 수
 #define EPOLL_SIZE 2 // epoll fd 수, stdin & clnt_sock
+#define ERROR -1
+#define STDIN 0
 
 void* send_msg(void* arg);
 void* recv_msg(void* arg);
@@ -26,24 +28,25 @@ int main()
 	struct sockaddr_in serv_adr;
 	struct epoll_event *ep_evnts;
 	struct epoll_event evnt;
-	int clnt_sock, read_tot, write_tot, ep_fd, evnt_cnt, nfds, flag, rcv_len, i;
+	int clnt_sock, read_tot, write_tot, ep_fd, evnt_cnt, fd_cnt, flag, rcv_len, i;
 
-	if ((clnt_sock = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
+	if ((clnt_sock = socket(PF_INET, SOCK_STREAM, 0)) == ERROR) {
 		perror("socket");
-		return -1;
+		return ERROR;
 	}
 
 	serv_adr.sin_family = AF_INET;
 	serv_adr.sin_addr.s_addr = inet_addr(IP);
 	serv_adr.sin_port = htons(PORT);
 
-	if (connect(clnt_sock, (struct sockaddr*)&serv_adr, sizeof(serv_adr)) == -1) {
+	if (connect(clnt_sock, (struct sockaddr*)&serv_adr, sizeof(serv_adr)) == ERROR) {
 		perror("connect");
 		close(clnt_sock);
+		exit(EXIT_FAILURE);
 	}
 
-	printf("\033[2J");
-	printf("%c[%d;%df", 0x1B, ((cursor) % 20) + 1, 25);
+	printf("\033[2J"); // 화면 clear
+	printf("%c[%d;%df", 0x1B, ((cursor) % LINE_SIZE) + 1, 0);
 	printf ("server connected\n");
 	move_cursor();
 
@@ -53,15 +56,15 @@ int main()
 	evnt.events = EPOLLIN;
 	evnt.data.fd = clnt_sock;
 
-	if (epoll_ctl(ep_fd, EPOLL_CTL_ADD, clnt_sock, &evnt) == -1) {
+	if (epoll_ctl(ep_fd, EPOLL_CTL_ADD, clnt_sock, &evnt) == ERROR) {
 		perror("epoll_ctl_clnt_sock");
 		exit(EXIT_FAILURE);
 	}
 
 	evnt.events = EPOLLIN | EPOLLET;
-	evnt.data.fd = 0;
+	evnt.data.fd = STDIN;
 
-	if (epoll_ctl(ep_fd, EPOLL_CTL_ADD, 0, &evnt) == -1){
+	if (epoll_ctl(ep_fd, EPOLL_CTL_ADD, 0, &evnt) == ERROR){
 		perror("epoll_ctli_stdin");
 		exit(EXIT_FAILURE);
 	}
@@ -71,15 +74,15 @@ int main()
 	fcntl(clnt_sock, F_SETFL, flag | O_NONBLOCK);
 
 	while(1) {
-		if ((nfds = epoll_wait(ep_fd, ep_evnts, EPOLL_SIZE, -1)) == -1) {
+		if ((fd_cnt = epoll_wait(ep_fd, ep_evnts, EPOLL_SIZE, -1)) == ERROR) {
 			perror("epoll_wait");
 			exit(EXIT_FAILURE);
 		}
 
-		for (i = 0; i < nfds; i++) {
+		for (i = 0; i < fd_cnt; i++) {
 			if (ep_evnts[i].data.fd == clnt_sock) {
 				recv_msg((void*)&clnt_sock);
-			} else if (ep_evnts[i].data.fd == 0) {
+			} else if (ep_evnts[i].data.fd == STDIN) {
 				send_msg((void*)&clnt_sock);
 			}
 		}
@@ -112,7 +115,7 @@ void* recv_msg(void* arg)
 
 	rcv_len = read(clnt_sock, msg, BUF_SIZE);
 
-	if (rcv_len == -1) {
+	if (rcv_len == ERROR) {
 		perror("receive");
 		return (void*) -1;
 	}
