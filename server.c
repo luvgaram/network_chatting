@@ -17,18 +17,20 @@
 
 struct udata {
 	int fd;
-	char name[80];
 };
 
 int user_fds[EPOLL_SIZE];
-void send_msg(struct epoll_event evnt, char *msg);
+void send_msg(int fd, int clnt_max, char *msg);
+int check_clnt_in(int clnt, int clnt_max);
+int check_clnt_out(int clnt, int clnt_max);
 
 char msg[BUF_SIZE];
 
 int main()
 {
-	int str_len = -1;
 	int serv_sock, clnt_sock, ep_fd, evnt_cnt, flag, i;
+	int str_len = -1;
+	int clnt_max = -1;
 
 	struct sockaddr_in serv_adr, clnt_adr;
 	socklen_t clnt_adr_sz;
@@ -82,6 +84,10 @@ int main()
                     perror("accept");
                 }
 
+				// 가장 큰 클라 소켓 값 저장
+				clnt_max = check_clnt_in(clnt_sock, clnt_max);
+				printf("%d\n", clnt_max);
+
 				//nonblocking
 				flag = fcntl(clnt_sock, F_GETFL, 0);
 				fcntl(clnt_sock, F_SETFL, flag | O_NONBLOCK);
@@ -89,8 +95,7 @@ int main()
 				user_fds[clnt_sock] = ACTIVATED;
 				user_data = malloc(sizeof(user_data));
 				user_data->fd = clnt_sock;
-				sprintf(user_data->name, "user(%d)", clnt_sock);
-				
+
                 evnt.events = EPOLLIN;
 				evnt.data.ptr = user_data;
 
@@ -100,21 +105,20 @@ int main()
             } else {
 				user_data = ep_evnts[i].data.ptr;
 				str_len = read(user_data->fd, msg, BUF_SIZE);
-				if (str_len == -1) {
-					if (errno != EAGAIN) {
-						printf("read error %d\n", errno);
+				if (str_len <= 0) {
+					if (errno == EAGAIN) {
+						printf("nonblocking");
+					} else {
+               			epoll_ctl(ep_fd, EPOLL_CTL_DEL, user_data->fd, NULL);
+	               		printf("client closed : %d\n", user_data->fd);
+						clnt_max = check_clnt_out(user_data->fd, clnt_max);
+						printf("%d\n", clnt_max);
 						close(user_data->fd);
 						user_fds[user_data->fd] = 0;
 						free(user_data);
-					}
-				} else if (str_len == 0) {
-                    epoll_ctl(ep_fd, EPOLL_CTL_DEL, user_data->fd, NULL);
-					close(user_data->fd);
-                    printf("client closed : %d\n", user_data->fd);
-					user_fds[user_data->fd] = 0;
-					free(user_data);
-                } else 
-					send_msg(ep_evnts[i], msg);
+                	}
+				} else
+					send_msg(user_data->fd, clnt_max, msg);
             }
 		}
 	}
@@ -124,16 +128,35 @@ int main()
 }
 
 // 모든 클라이언트에 메시지 전송
-void send_msg(struct epoll_event evnt, char *msg)
+void send_msg(int fd, int clnt_max, char *msg)
 {
 	int i;
 	char buf[BUF_SIZE + 24];
-	struct udata *user_data;
-	user_data = evnt.data.ptr;
-	for (i = 0; i < EPOLL_SIZE; i++) {
-		sprintf(buf, "%s %s", user_data->name, msg);
+	for (i = 0; i <= clnt_max; i++) {
 		if ((user_fds[i] == ACTIVATED)) {
+			sprintf(buf, "user %d: %s", fd, msg);
 			write(i, buf, strlen(buf) + 1);
 		}
 	}
+}
+
+int check_clnt_in(int clnt, int clnt_max)
+{
+	if (clnt > clnt_max)
+		return clnt;
+	return clnt_max;
+}
+
+int check_clnt_out(int clnt, int clnt_max)
+{
+	if (clnt == clnt_max) {
+		clnt = clnt - 1;
+		for ( ; clnt >= 0; clnt--) {
+			printf("checking %d\n", clnt);
+			if (user_fds[clnt] != 0)
+				return clnt;
+		}
+		return -1;
+	}
+	return clnt_max;
 }
