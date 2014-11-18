@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
+#include <errno.h>
 #include <fcntl.h>
 
 #define BUF_SIZE 1024
@@ -12,7 +13,6 @@
 #define IN_CURSOR 22 // 입력 커서 위치
 #define LINE_SIZE 20 // 채팅줄 수
 #define EPOLL_SIZE 20 // epoll fd 수 
-#define ERROR -1
 #define ACTIVATED 1
 
 struct udata {
@@ -27,8 +27,8 @@ char msg[BUF_SIZE];
 
 int main()
 {
-	int str_len = ERROR;
-	int serv_sock, clnt_sock, ep_fd, evnt_cnt, i;
+	int str_len = -1;
+	int serv_sock, clnt_sock, ep_fd, evnt_cnt, flag, i;
 
 	struct sockaddr_in serv_adr, clnt_adr;
 	socklen_t clnt_adr_sz;
@@ -37,9 +37,9 @@ int main()
 	struct epoll_event evnt;
 	struct udata *user_data;
 
-	if ((serv_sock = socket (PF_INET, SOCK_STREAM, 0)) == ERROR) {
+	if ((serv_sock = socket (PF_INET, SOCK_STREAM, 0)) == -1) {
 		perror("socket");
-		return ERROR;
+		return -1;
 	}
 
 	serv_adr.sin_family = AF_INET;
@@ -68,8 +68,8 @@ int main()
 	printf("\033[2J"); // 화면 clear
 
 	while (1) {		
-		evnt_cnt = epoll_wait(ep_fd, ep_evnts, EPOLL_SIZE, ERROR); // 이벤트 발생까지 무한 대기
-		if (evnt_cnt == ERROR) {
+		evnt_cnt = epoll_wait(ep_fd, ep_evnts, EPOLL_SIZE, -1); // 이벤트 발생까지 무한 대기
+		if (evnt_cnt == -1) {
 			perror("epoll_wait");
 			break;
 		}
@@ -78,9 +78,14 @@ int main()
             if (ep_evnts[i].data.fd == serv_sock) {
                 clnt_adr_sz = sizeof(clnt_adr);
                 clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_adr, &clnt_adr_sz);
-                if (clnt_sock == ERROR) {
+                if (clnt_sock == -1) {
                     perror("accept");
                 }
+
+				//nonblocking
+				flag = fcntl(clnt_sock, F_GETFL, 0);
+				fcntl(clnt_sock, F_SETFL, flag | O_NONBLOCK);
+
 				user_fds[clnt_sock] = ACTIVATED;
 				user_data = malloc(sizeof(user_data));
 				user_data->fd = clnt_sock;
@@ -95,13 +100,21 @@ int main()
             } else {
 				user_data = ep_evnts[i].data.ptr;
 				str_len = read(user_data->fd, msg, BUF_SIZE);
-				if (str_len <= 0) {
+				if (str_len == -1) {
+					if (errno != EAGAIN) {
+						printf("read error %d\n", errno);
+						close(user_data->fd);
+						user_fds[user_data->fd] = 0;
+						free(user_data);
+					}
+				} else if (str_len == 0) {
                     epoll_ctl(ep_fd, EPOLL_CTL_DEL, user_data->fd, NULL);
 					close(user_data->fd);
                     printf("client closed : %d\n", user_data->fd);
-					user_fds[user_data->fd] = ERROR;
+					user_fds[user_data->fd] = 0;
 					free(user_data);
-                } else send_msg(ep_evnts[i], msg);
+                } else 
+					send_msg(ep_evnts[i], msg);
             }
 		}
 	}
@@ -121,7 +134,6 @@ void send_msg(struct epoll_event evnt, char *msg)
 		sprintf(buf, "%s %s", user_data->name, msg);
 		if ((user_fds[i] == ACTIVATED)) {
 			write(i, buf, strlen(buf) + 1);
-			printf("%s", buf);
 		}
 	}
 }
