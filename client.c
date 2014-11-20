@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
+#include <errno.h>
 #include <fcntl.h>
 
 #define BUF_SIZE 1024
@@ -13,10 +14,9 @@
 #define IN_CURSOR 30 // 입력 커서 위치
 #define LINE_SIZE 20 // 채팅줄 수
 #define EPOLL_SIZE 2 // epoll fd 수, stdin & clnt_sock
-#define ERROR -1
 #define STDIN 0
 
-void send_msg(int clnt_sock);
+void get_and_send_msg(int clnt_sock);
 void read_msg(int clnt_sock);
 void move_cursor(void);
 
@@ -30,16 +30,16 @@ int main()
 	struct epoll_event evnt;
 	int clnt_sock, read_tot, write_tot, ep_fd, evnt_cnt, fd_cnt, flag, rcv_len, i;
 
-	if ((clnt_sock = socket(PF_INET, SOCK_STREAM, 0)) == ERROR) {
+	if ((clnt_sock = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
 		perror("socket");
-		return ERROR;
+		return -1;
 	}
 
 	serv_adr.sin_family = AF_INET;
 	serv_adr.sin_addr.s_addr = inet_addr(IP);
 	serv_adr.sin_port = htons(PORT);
 
-	if (connect(clnt_sock, (struct sockaddr*)&serv_adr, sizeof(serv_adr)) == ERROR) {
+	if (connect(clnt_sock, (struct sockaddr*)&serv_adr, sizeof(serv_adr)) == -1) {
 		perror("connect");
 		close(clnt_sock);
 		exit(EXIT_FAILURE);
@@ -56,7 +56,7 @@ int main()
 	evnt.events = EPOLLIN;
 	evnt.data.fd = clnt_sock;
 
-	if (epoll_ctl(ep_fd, EPOLL_CTL_ADD, clnt_sock, &evnt) == ERROR) {
+	if (epoll_ctl(ep_fd, EPOLL_CTL_ADD, clnt_sock, &evnt) == -1) {
 		perror("epoll_ctl_clnt_sock");
 		exit(EXIT_FAILURE);
 	}
@@ -64,7 +64,7 @@ int main()
 	evnt.events = EPOLLIN | EPOLLET;
 	evnt.data.fd = STDIN;
 
-	if (epoll_ctl(ep_fd, EPOLL_CTL_ADD, 0, &evnt) == ERROR){
+	if (epoll_ctl(ep_fd, EPOLL_CTL_ADD, 0, &evnt) == -1){
 		perror("epoll_ctli_stdin");
 		exit(EXIT_FAILURE);
 	}
@@ -74,7 +74,7 @@ int main()
 	fcntl(clnt_sock, F_SETFL, flag | O_NONBLOCK);
 
 	while(1) {
-		if ((fd_cnt = epoll_wait(ep_fd, ep_evnts, EPOLL_SIZE, -1)) == ERROR) {
+		if ((fd_cnt = epoll_wait(ep_fd, ep_evnts, EPOLL_SIZE, -1)) == -1) {
 			perror("epoll_wait");
 			exit(EXIT_FAILURE);
 		}
@@ -83,7 +83,7 @@ int main()
 			if (ep_evnts[i].data.fd == clnt_sock) {
 				read_msg(clnt_sock);
 			} else if (ep_evnts[i].data.fd == STDIN) {
-				send_msg(clnt_sock);
+				get_and_send_msg(clnt_sock);
 			}
 		}
 	}
@@ -92,11 +92,12 @@ int main()
 	return 0;
 }
 
-void send_msg(int clnt_sock)
+void get_and_send_msg(int clnt_sock)
 {
 //	int clnt_sock = x*((int*)arg);
 
 	fgets(msg, BUF_SIZE, stdin);
+	msg[strlen(msg) + 1] = 0;
 	
 	if (!strcmp(msg, "q\n")) {
 		close(clnt_sock);
@@ -113,9 +114,11 @@ void read_msg(int clnt_sock)
 
 	rcv_len = read(clnt_sock, msg, BUF_SIZE);
 
-	if (rcv_len == ERROR) {
-		perror("receive");
-		return;
+	if (rcv_len == -1) {
+		if (errno != EAGAIN) {
+			perror("receive");
+			return;
+		}
 	}
 
 	if (rcv_len > 0) {
@@ -123,7 +126,7 @@ void read_msg(int clnt_sock)
 
 		if (msg[rcv_len - 1] == 0)
 			printf("%s", msg);
-		else perror("invalid string");
+		else fprintf(stderr, "invalid string");
 
 		move_cursor();
 	}
